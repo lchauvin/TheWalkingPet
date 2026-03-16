@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import logging
 import uuid
 
 from pgvector.sqlalchemy import Vector
@@ -16,7 +17,9 @@ from sqlalchemy.orm import selectinload
 from src.db.models import LostDeclaration, LostStatus, Match, MatchStatus, PetImage, Sighting, Species
 from src.utils.geo import bounding_box, haversine_km
 
-SIMILARITY_THRESHOLD = 0.7
+logger = logging.getLogger(__name__)
+
+SIMILARITY_THRESHOLD = 0.50
 
 
 async def find_candidate_declarations(
@@ -44,10 +47,20 @@ async def find_candidate_declarations(
     result = await db.execute(stmt)
     candidates = list(result.scalars().all())
 
-    return [
+    filtered = [
         decl for decl in candidates
         if haversine_km(lat, lon, decl.last_seen_lat, decl.last_seen_lon) <= decl.search_radius_km
     ]
+    logger.info(
+        f"[Matching] GPS filter: sighting=({lat:.5f},{lon:.5f}) species={species} "
+        f"→ {len(candidates)} bbox candidates, {len(filtered)} within radius"
+    )
+    for decl in candidates:
+        dist = haversine_km(lat, lon, decl.last_seen_lat, decl.last_seen_lon)
+        logger.info(
+            f"[Matching]   decl={decl.id} pet={decl.pet_id} radius={decl.search_radius_km}km dist={dist:.3f}km {'✓' if dist <= decl.search_radius_km else '✗'}"
+        )
+    return filtered
 
 
 async def run_matching(
@@ -62,6 +75,7 @@ async def run_matching(
         db, sighting.latitude, sighting.longitude, sighting.species_detected
     )
     if not candidates:
+        logger.info(f"[Matching] No candidate declarations for sighting={sighting.id}")
         return []
 
     pet_ids = [decl.pet_id for decl in candidates]
@@ -87,9 +101,12 @@ async def run_matching(
         if pet_id not in best_per_pet or sim > best_per_pet[pet_id]:
             best_per_pet[pet_id] = sim
 
+    logger.info(f"[Matching] Similarity scores: {[f'{pid}: {sim:.3f}' for pid, sim in best_per_pet.items()]}")
+
     matches = []
     for pet_id, similarity in best_per_pet.items():
         if similarity < SIMILARITY_THRESHOLD:
+            logger.info(f"[Matching] pet={pet_id} score={similarity:.3f} below threshold {SIMILARITY_THRESHOLD} — no match")
             continue
         decl = decl_by_pet[pet_id]
         match = Match(

@@ -2,8 +2,10 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Environment
+# Environment variables
 .env
+.env.*
+!.env.example
 
 # ML models & training artifacts
 *.pt
@@ -15,10 +17,12 @@ models/
 # Uploaded images
 storage/images/
 
-# Firebase credentials
+# Firebase & Google credentials
 firebase-creds.json
 *firebase*credentials*.json
 *service-account*.json
+mobile/android/app/google-services.json
+mobile/ios/Runner/GoogleService-Info.plist
 
 # Python packaging
 .venv/
@@ -26,5 +30,23 @@ dist/
 *.egg-info/
 uv.lock
 
+# Flutter / Dart
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/key.properties
+mobile/*.jks
+mobile/**/*.jks
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
 # Misc
 .DS_Store
+Thumbs.db

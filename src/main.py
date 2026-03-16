@@ -5,6 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from src.config import settings
 from src.dependencies import set_ml_models
@@ -47,6 +48,10 @@ app = FastAPI(
 
 from src.api.v1.router import router as v1_router  # noqa: E402
 app.include_router(v1_router, prefix="/api/v1")
+
+import os  # noqa: E402
+os.makedirs(settings.storage_path, exist_ok=True)
+app.mount("/storage", StaticFiles(directory=settings.storage_path), name="storage")
 
 
 @app.get("/health")

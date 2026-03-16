@@ -77,4 +77,23 @@ async def upload_pet_image(
     pet = await pet_service.get_pet(db, pet_id)
     if not pet or pet.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pet not found")
-    return await pet_service.add_pet_image(db, pet_id, file, embedder, detector, is_primary)
+    try:
+        return await pet_service.add_pet_image(db, pet_id, file, embedder, detector, is_primary)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+
+@router.delete("/{pet_id}/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_pet_image(
+    pet_id: uuid.UUID,
+    image_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    pet = await pet_service.get_pet(db, pet_id)
+    if not pet or pet.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pet not found")
+    try:
+        await pet_service.delete_pet_image(db, pet, image_id)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

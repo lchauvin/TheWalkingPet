@@ -25,7 +25,7 @@ class PetEmbedder:
         self.model.eval()
 
         if checkpoint_path and Path(checkpoint_path).exists():
-            state = torch.load(checkpoint_path, map_location=self.device)
+            state = torch.load(checkpoint_path, map_location=self.device, weights_only=True)
             # Handle Lightning checkpoints that wrap state_dict
             if "state_dict" in state:
                 state = state["state_dict"]

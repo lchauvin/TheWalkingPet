@@ -33,10 +33,10 @@ async def _run_matching_bg(sighting_id: uuid.UUID) -> None:
 
 @router.post("", response_model=SightingOut, status_code=status.HTTP_201_CREATED)
 async def submit_sighting(
+    background_tasks: BackgroundTasks,
     file: UploadFile,
     latitude: float = Form(...),
     longitude: float = Form(...),
-    background_tasks: BackgroundTasks = BackgroundTasks(),
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
     embedder=Depends(get_embedder),

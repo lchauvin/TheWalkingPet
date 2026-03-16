@@ -75,7 +75,7 @@ class Pet(Base):
 
     owner: Mapped["User"] = relationship("User", back_populates="pets")
     images: Mapped[list["PetImage"]] = relationship("PetImage", back_populates="pet", cascade="all, delete-orphan")
-    lost_declarations: Mapped[list["LostDeclaration"]] = relationship("LostDeclaration", back_populates="pet")
+    lost_declarations: Mapped[list["LostDeclaration"]] = relationship("LostDeclaration", back_populates="pet", passive_deletes=True)
 
     __table_args__ = (
         Index("ix_pets_lat_lon", "latitude", "longitude"),

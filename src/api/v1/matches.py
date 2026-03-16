@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from src.dependencies import get_current_user, get_db
 from src.db.models import LostDeclaration, Match, MatchStatus, Pet, Sighting
-from src.schemas.match import MatchConfirmOut, MatchOut
+from src.schemas.match import MatchConfirmOut, MatchOut  # noqa: F401 (MatchOut used in response_model)
 
 router = APIRouter()
 
@@ -44,10 +44,11 @@ async def list_matches(
         stmt = stmt.where(Match.status == status_filter)
 
     result = await db.execute(stmt)
-    return list(result.unique().scalars().all())
+    matches = list(result.unique().scalars().all())
+    return [MatchOut.from_match(m) for m in matches]
 
 
-@router.post("/{match_id}/confirm", response_model=MatchConfirmOut)
+@router.post("/{match_id}/confirm", response_model=MatchOut)
 async def confirm_match(
     match_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -56,16 +57,19 @@ async def confirm_match(
     match = await _get_match_for_owner(db, match_id, current_user.id)
     match.status = MatchStatus.CONFIRMED
     await db.commit()
-    await db.refresh(match)
 
-    sighting = await db.get(Sighting, match.sighting_id)
-    return MatchConfirmOut(
-        id=match.id,
-        status=match.status,
-        similarity_score=match.similarity_score,
-        sighting_lat=sighting.latitude if sighting else None,
-        sighting_lon=sighting.longitude if sighting else None,
+    stmt = (
+        select(Match)
+        .where(Match.id == match.id)
+        .options(selectinload(Match.sighting))
     )
+    result = await db.execute(stmt)
+    match = result.scalar_one()
+
+    out = MatchOut.from_match(match)
+    out.sighting_lat = match.sighting.latitude if match.sighting else None
+    out.sighting_lon = match.sighting.longitude if match.sighting else None
+    return out
 
 
 @router.post("/{match_id}/reject", response_model=MatchOut)

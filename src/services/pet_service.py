@@ -44,6 +44,22 @@ async def delete_pet(db: AsyncSession, pet: Pet) -> None:
     await db.commit()
 
 
+MAX_IMAGES_PER_PET = 10
+
+
+async def delete_pet_image(
+    db: AsyncSession,
+    pet: Pet,
+    image_id: uuid.UUID,
+) -> None:
+    image = next((img for img in pet.images if img.id == image_id), None)
+    if not image:
+        raise LookupError("Image not found")
+    image_store.delete(image.image_path)
+    await db.delete(image)
+    await db.commit()
+
+
 async def add_pet_image(
     db: AsyncSession,
     pet_id: uuid.UUID,
@@ -54,6 +70,10 @@ async def add_pet_image(
 ) -> PetImage:
     import io
     from PIL import Image
+
+    pet = await get_pet(db, pet_id)
+    if pet and len(pet.images) >= MAX_IMAGES_PER_PET:
+        raise ValueError(f"Maximum of {MAX_IMAGES_PER_PET} images per pet reached")
 
     path = await image_store.save(file, subfolder=f"pets/{pet_id}")
 
