@@ -1,0 +1,73 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "thewalkingpet"
+version = "2.0.0"
+description = "Gamified lost-pet-finding app backend"
+requires-python = ">=3.11"
+dependencies = [
+    # Web framework
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "python-multipart>=0.0.9",
+
+    # Database
+    "sqlalchemy[asyncio]>=2.0.29",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.1",
+    "pgvector>=0.3.2",
+
+    # Auth
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "bcrypt==4.0.1",  # passlib is incompatible with bcrypt 4.1+
+    "google-auth>=2.29.0",
+    "firebase-admin>=6.5.0",
+
+    # Settings
+    "pydantic-settings>=2.2.1",
+    "pydantic[email]>=2.7.0",
+    "email-validator>=2.1.1",
+
+    # ML
+    "torch>=2.2.0",
+    "torchvision>=0.17.0",
+    "ultralytics>=8.2.0",
+    "pytorch-metric-learning>=2.4.1",
+    "pillow>=10.3.0",
+    "pillow-heif>=0.16.0",
+    "numpy>=1.26.0",
+
+    # Utils
+    "aiofiles>=23.2.1",
+    "python-dotenv>=1.0.1",
+    "apscheduler>=3.10.4",
+    "absl-py>=2.0.0",
+
+    # setuptools<71 is required: newer versions don't install pkg_resources as a top-level module,
+    # which breaks tensorboard's import
+    "setuptools<71",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.1.1",
+    "pytest-asyncio>=0.23.6",
+    "httpx>=0.27.0",
+    "tensorboard>=2.16.2",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+# Tell uv to fetch torch/torchvision from the PyTorch CUDA index
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu121" }]
+torchvision = [{ index = "pytorch-cu121" }]

@@ -1,0 +1,30 @@
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment
+.env
+
+# ML models & training artifacts
+*.pt
+*.ckpt
+runs/
+lightning_logs/
+models/
+
+# Uploaded images
+storage/images/
+
+# Firebase credentials
+firebase-creds.json
+*firebase*credentials*.json
+*service-account*.json
+
+# Python packaging
+.venv/
+dist/
+*.egg-info/
+uv.lock
+
+# Misc
+.DS_Store
