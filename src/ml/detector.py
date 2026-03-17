@@ -77,8 +77,11 @@ class PetDetector:
         x2: int,
         y2: int,
     ) -> Image.Image:
-        """Apply segmentation mask and return cropped image."""
+        """Apply segmentation mask, fill background with ImageNet mean color,
+        pad to square, and return cropped image."""
         img_np = np.array(image)
+        # ImageNet mean in uint8 — neutral background for pretrained models
+        imagenet_mean = np.array([124, 117, 104], dtype=np.uint8)
 
         if result.masks is not None and index < len(result.masks):
             mask_data = result.masks[index].data[0].cpu().numpy()
@@ -88,12 +91,23 @@ class PetDetector:
             )
             mask_np = np.array(mask_pil)
 
-            # Apply mask: zero out background
+            # Fill background with ImageNet mean instead of black
             masked = img_np.copy()
-            masked[mask_np == 0] = 0
+            masked[mask_np == 0] = imagenet_mean
         else:
             masked = img_np
 
         # Crop to bounding box
         cropped = masked[y1:y2, x1:x2]
+
+        # Pad to square with ImageNet mean fill to preserve aspect ratio
+        h, w = cropped.shape[:2]
+        if h != w:
+            side = max(h, w)
+            square = np.full((side, side, 3), imagenet_mean, dtype=np.uint8)
+            y_off = (side - h) // 2
+            x_off = (side - w) // 2
+            square[y_off:y_off + h, x_off:x_off + w] = cropped
+            cropped = square
+
         return Image.fromarray(cropped)

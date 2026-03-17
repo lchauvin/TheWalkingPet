@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     # ML
     model_checkpoint_path: str = "./models/triplet_net.pt"
     yolo_model: str = "yolov8m-seg.pt"
-    embedding_dim: int = 256
+    embedding_dim: int = 1024
+    model_type: str = "dinov2"
 
     # Google OAuth + Firebase
     google_client_id: str = ""

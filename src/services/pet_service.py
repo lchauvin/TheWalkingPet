@@ -1,5 +1,6 @@
 import uuid
 
+import numpy as np
 from fastapi import UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,6 +48,25 @@ async def delete_pet(db: AsyncSession, pet: Pet) -> None:
 MAX_IMAGES_PER_PET = 10
 
 
+async def _update_aggregate_embedding(db: AsyncSession, pet: Pet) -> None:
+    """Recompute pet.embedding as the L2-normalized mean of all pet_image embeddings."""
+    result = await db.execute(
+        select(PetImage.embedding).where(
+            PetImage.pet_id == pet.id,
+            PetImage.embedding.isnot(None),
+        )
+    )
+    embeddings = [row.embedding for row in result.fetchall()]
+    if not embeddings:
+        pet.embedding = None
+    else:
+        arr = np.array(embeddings, dtype=np.float32)
+        mean = arr.mean(axis=0)
+        norm = np.linalg.norm(mean)
+        pet.embedding = (mean / norm).tolist() if norm > 0 else mean.tolist()
+    await db.commit()
+
+
 async def delete_pet_image(
     db: AsyncSession,
     pet: Pet,
@@ -58,6 +78,9 @@ async def delete_pet_image(
     image_store.delete(image.image_path)
     await db.delete(image)
     await db.commit()
+    # Refresh pet.images after deletion before recomputing aggregate
+    await db.refresh(pet)
+    await _update_aggregate_embedding(db, pet)
 
 
 async def add_pet_image(
@@ -84,7 +107,8 @@ async def add_pet_image(
     detection = detector.best_detection(pil_image)
     crop = detection["masked"] if detection else pil_image
 
-    embedding = embedder.embed_image(crop)
+    # Use TTA for registration photos to improve embedding quality
+    embedding = embedder.embed_image_tta(crop)
 
     pet_image = PetImage(
         id=uuid.uuid4(),
@@ -96,4 +120,9 @@ async def add_pet_image(
     db.add(pet_image)
     await db.commit()
     await db.refresh(pet_image)
+
+    # Update the aggregate embedding for this pet
+    await db.refresh(pet)
+    await _update_aggregate_embedding(db, pet)
+
     return pet_image

@@ -72,6 +72,7 @@ class Pet(Base):
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
 
     owner: Mapped["User"] = relationship("User", back_populates="pets")
     images: Mapped[list["PetImage"]] = relationship("PetImage", back_populates="pet", cascade="all, delete-orphan")
@@ -88,7 +89,7 @@ class PetImage(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     pet_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("pets.id", ondelete="CASCADE"), nullable=False)
     image_path: Mapped[str] = mapped_column(String(500), nullable=False)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(256), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -123,7 +124,7 @@ class Sighting(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     reporter_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     image_path: Mapped[str] = mapped_column(String(500), nullable=False)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(256), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
     species_detected: Mapped[Species | None] = mapped_column(Enum(Species), nullable=True)
