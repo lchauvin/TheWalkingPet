@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/api/api_client.dart';
 import '../providers/pets_provider.dart';
 import '../models/pet.dart';
+import '../../lost/providers/lost_provider.dart';
 
 class PetDetailScreen extends ConsumerWidget {
   final String petId;
@@ -40,6 +41,8 @@ class _PetDetailView extends ConsumerStatefulWidget {
 class _PetDetailViewState extends ConsumerState<_PetDetailView> {
   final _picker = ImagePicker();
   bool _uploading = false;
+  int _uploadProgress = 0;
+  int _uploadTotal = 0;
 
   Future<void> _pickAndUpload() async {
     final source = await showModalBottomSheet<ImageSource>(
@@ -51,6 +54,7 @@ class _PetDetailViewState extends ConsumerState<_PetDetailView> {
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
               title: const Text('Choose from gallery'),
+              subtitle: const Text('Select multiple photos at once'),
               onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
             ListTile(
@@ -64,18 +68,38 @@ class _PetDetailViewState extends ConsumerState<_PetDetailView> {
     );
     if (source == null) return;
 
-    final picked = await _picker.pickImage(
-      source: source,
-      imageQuality: 85,
-    );
-    if (picked == null || !mounted) return;
+    final remaining = 10 - widget.pet.images.length;
 
-    setState(() => _uploading = true);
-    await ref.read(petsProvider.notifier).uploadImage(
-      widget.pet.id,
-      File(picked.path),
-      isPrimary: widget.pet.images.isEmpty,
-    );
+    if (source == ImageSource.gallery) {
+      final picked = await _picker.pickMultiImage(imageQuality: 85, limit: remaining);
+      if (picked.isEmpty || !mounted) return;
+
+      setState(() {
+        _uploading = true;
+        _uploadProgress = 0;
+        _uploadTotal = picked.length;
+      });
+      for (final xfile in picked) {
+        await ref.read(petsProvider.notifier).uploadImage(
+          widget.pet.id,
+          File(xfile.path),
+          isPrimary: widget.pet.images.isEmpty && _uploadProgress == 0,
+        );
+        if (!mounted) return;
+        setState(() => _uploadProgress++);
+      }
+    } else {
+      final picked = await _picker.pickImage(source: source, imageQuality: 85);
+      if (picked == null || !mounted) return;
+
+      setState(() { _uploading = true; _uploadProgress = 0; _uploadTotal = 1; });
+      await ref.read(petsProvider.notifier).uploadImage(
+        widget.pet.id,
+        File(picked.path),
+        isPrimary: widget.pet.images.isEmpty,
+      );
+    }
+
     if (mounted) setState(() => _uploading = false);
   }
 
@@ -142,18 +166,7 @@ class _PetDetailViewState extends ConsumerState<_PetDetailView> {
             ),
           ),
           const SizedBox(height: 12),
-          ElevatedButton.icon(
-            onPressed: () => context.push(
-              '/pets/${pet.id}/declare-lost',
-              extra: pet.name,
-            ),
-            icon: const Icon(Icons.warning_amber_rounded),
-            label: const Text('Declare Lost'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-          ),
+          _DeclareLostButton(pet: pet),
           const SizedBox(height: 16),
 
           // Photos section
@@ -163,10 +176,19 @@ class _PetDetailViewState extends ConsumerState<_PetDetailView> {
               Text('Photos (${pet.images.length})',
                   style: Theme.of(context).textTheme.titleMedium),
               _uploading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          height: 16, width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        if (_uploadTotal > 1) ...[
+                          const SizedBox(width: 6),
+                          Text('$_uploadProgress/$_uploadTotal',
+                              style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                        ],
+                      ],
                     )
                   : widget.pet.images.length >= 10
                       ? const Text('Max 10 photos',
@@ -273,6 +295,56 @@ class _PetDetailViewState extends ConsumerState<_PetDetailView> {
               },
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _DeclareLostButton extends ConsumerWidget {
+  final Pet pet;
+  const _DeclareLostButton({required this.pet});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lostAsync = ref.watch(lostProvider);
+    final isAlreadyLost = lostAsync.valueOrNull
+            ?.any((d) => d.petId == pet.id && d.isActive) ??
+        false;
+
+    if (isAlreadyLost) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.orange.shade300),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'Currently declared lost',
+              style: TextStyle(
+                color: Colors.orange.shade700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ElevatedButton.icon(
+      onPressed: () => context.push('/pets/${pet.id}/declare-lost', extra: pet.name),
+      icon: const Icon(Icons.warning_amber_rounded),
+      label: const Text('Declare Lost'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.red,
+        foregroundColor: Colors.white,
+        minimumSize: const Size(double.infinity, 44),
       ),
     );
   }

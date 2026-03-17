@@ -1,9 +1,12 @@
 """FCM push notification service."""
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from src.config import settings
+
+FCM_TIMEOUT_SECONDS = 10
 from src.db.models import Match
 
 logger = logging.getLogger(__name__)
@@ -68,7 +71,15 @@ async def notify_match(match: Match) -> None:
                 },
                 token=owner.fcm_token,
             )
-            response = messaging.send(message)
+            loop = asyncio.get_event_loop()
+            response = await asyncio.wait_for(
+                loop.run_in_executor(None, lambda: messaging.send(message)),
+                timeout=FCM_TIMEOUT_SECONDS,
+            )
             logger.info(f"[Notification] Push sent for match {match.id}: {response}")
+        except asyncio.TimeoutError:
+            logger.error(
+                f"[Notification] Push timed out after {FCM_TIMEOUT_SECONDS}s for match {match.id}"
+            )
         except Exception as e:
             logger.error(f"[Notification] Failed to send push for match {match.id}: {e}")
