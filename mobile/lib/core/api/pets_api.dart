@@ -38,7 +38,7 @@ class PetsApi {
       ),
       'is_primary': isPrimary.toString(),
     });
-    final response = await _client.dio.post(
+    await _client.dio.post(
       '/pets/$petId/images',
       data: formData,
     );

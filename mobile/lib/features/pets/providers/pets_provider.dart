@@ -43,32 +43,44 @@ class PetsNotifier extends StateNotifier<AsyncValue<List<Pet>>> {
   }
 
   Future<void> uploadImage(String petId, File imageFile, {bool isPrimary = false}) async {
-    final updated = await _api.uploadImage(petId, imageFile, isPrimary: isPrimary);
-    state = state.whenData(
-      (pets) => pets.map((p) => p.id == petId ? updated : p).toList(),
-    );
+    try {
+      final updated = await _api.uploadImage(petId, imageFile, isPrimary: isPrimary);
+      state = state.whenData(
+        (pets) => pets.map((p) => p.id == petId ? updated : p).toList(),
+      );
+    } catch (_) {
+      rethrow;
+    }
   }
 
   Future<void> deletePet(String petId) async {
-    await _api.deletePet(petId);
-    state = state.whenData((pets) => pets.where((p) => p.id != petId).toList());
+    try {
+      await _api.deletePet(petId);
+      state = state.whenData((pets) => pets.where((p) => p.id != petId).toList());
+    } catch (_) {
+      rethrow;
+    }
   }
 
   Future<void> deletePetImage(String petId, String imageId) async {
-    await _api.deletePetImage(petId, imageId);
-    state = state.whenData((pets) => pets.map((p) {
-      if (p.id != petId) return p;
-      final updatedImages = p.images.where((i) => i.id != imageId).toList();
-      return Pet(
-        id: p.id,
-        name: p.name,
-        species: p.species,
-        breed: p.breed,
-        description: p.description,
-        isMicrochipped: p.isMicrochipped,
-        images: updatedImages,
-      );
-    }).toList());
+    try {
+      await _api.deletePetImage(petId, imageId);
+      state = state.whenData((pets) => pets.map((p) {
+        if (p.id != petId) return p;
+        final updatedImages = p.images.where((i) => i.id != imageId).toList();
+        return Pet(
+          id: p.id,
+          name: p.name,
+          species: p.species,
+          breed: p.breed,
+          description: p.description,
+          isMicrochipped: p.isMicrochipped,
+          images: updatedImages,
+        );
+      }).toList());
+    } catch (_) {
+      rethrow;
+    }
   }
 }
 

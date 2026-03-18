@@ -42,17 +42,25 @@ class LostNotifier extends StateNotifier<AsyncValue<List<LostDeclaration>>> {
   }
 
   Future<void> markFound(String declarationId) async {
-    final updated = await _api.updateStatus(declarationId, 'FOUND');
-    state = state.whenData(
-      (list) => list.map((d) => d.id == declarationId ? updated : d).toList(),
-    );
+    try {
+      final updated = await _api.updateStatus(declarationId, 'FOUND');
+      state = state.whenData(
+        (list) => list.map((d) => d.id == declarationId ? updated : d).toList(),
+      );
+    } catch (_) {
+      rethrow;
+    }
   }
 
   Future<void> cancel(String declarationId) async {
-    final updated = await _api.updateStatus(declarationId, 'CANCELLED');
-    state = state.whenData(
-      (list) => list.map((d) => d.id == declarationId ? updated : d).toList(),
-    );
+    try {
+      final updated = await _api.updateStatus(declarationId, 'CANCELLED');
+      state = state.whenData(
+        (list) => list.map((d) => d.id == declarationId ? updated : d).toList(),
+      );
+    } catch (_) {
+      rethrow;
+    }
   }
 }
 

@@ -73,7 +73,7 @@ class _AddPetScreenState extends ConsumerState<AddPetScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _species,
+                initialValue: _species,
                 decoration: const InputDecoration(
                   labelText: 'Species *',
                   prefixIcon: Icon(Icons.pets),

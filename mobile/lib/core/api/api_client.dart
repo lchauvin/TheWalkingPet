@@ -1,8 +1,16 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-const _baseUrl = 'http://192.168.2.21:8000/api/v1';
-const _storageBase = 'http://192.168.2.21:8000/storage';
+// Configure at build time via --dart-define=API_URL=https://...
+// TODO: Switch to HTTPS in production.
+const apiBaseUrl = String.fromEnvironment(
+  'API_URL',
+  defaultValue: 'http://192.168.2.21:8000/api/v1',
+);
+const _storageBase = String.fromEnvironment(
+  'STORAGE_URL',
+  defaultValue: 'http://192.168.2.21:8000/storage',
+);
 
 /// Convert a stored image path to a full URL.
 /// Stored paths look like: storage\images\pets\{id}\file.jpg  (Windows)
@@ -24,11 +32,16 @@ class ApiClient {
   late final Dio _dio;
   final _storage = const FlutterSecureStorage();
 
+  /// Called when a session expires and the refresh token is invalid.
+  /// Set by AuthNotifier to redirect to login.
+  void Function()? onSessionExpired;
+
   ApiClient._internal() {
     _dio = Dio(BaseOptions(
-      baseUrl: _baseUrl,
+      baseUrl: apiBaseUrl,
       connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 30),
+      sendTimeout: const Duration(seconds: 30),
     ));
 
     _dio.interceptors.add(InterceptorsWrapper(
@@ -62,7 +75,7 @@ class ApiClient {
       if (refreshToken == null) return false;
 
       final response = await Dio().post(
-        '$_baseUrl/auth/refresh',
+        '$apiBaseUrl/auth/refresh',
         data: {'refresh_token': refreshToken},
       );
       await saveTokens(
@@ -72,6 +85,7 @@ class ApiClient {
       return true;
     } catch (_) {
       await clearTokens();
+      onSessionExpired?.call();
       return false;
     }
   }

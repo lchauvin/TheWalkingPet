@@ -1,6 +1,8 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/api/api_client.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/pets_provider.dart';
 import '../models/pet.dart';
@@ -40,7 +42,7 @@ class PetsScreen extends ConsumerWidget {
             children: [
               const Icon(Icons.error_outline, size: 48, color: Colors.red),
               const SizedBox(height: 8),
-              Text('Failed to load pets: $e'),
+              const Text('Failed to load pets. Pull to retry.'),
               TextButton(
                 onPressed: () => ref.read(petsProvider.notifier).load(),
                 child: const Text('Retry'),
@@ -92,7 +94,19 @@ class _PetCard extends ConsumerWidget {
         leading: CircleAvatar(
           radius: 28,
           backgroundColor: Colors.orange.shade100,
-          child: const Icon(Icons.pets, color: Colors.deepOrange),
+          child: pet.primaryImagePath != null
+              ? ClipOval(
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl(pet.primaryImagePath!),
+                    width: 56,
+                    height: 56,
+                    fit: BoxFit.cover,
+                    placeholder: (_, _) => const SizedBox.shrink(),
+                    errorWidget: (_, _, _) =>
+                        const Icon(Icons.pets, color: Colors.deepOrange),
+                  ),
+                )
+              : const Icon(Icons.pets, color: Colors.deepOrange),
         ),
         title: Text(pet.name, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(

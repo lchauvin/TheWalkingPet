@@ -87,7 +87,7 @@ class _SubmitSightingScreenState extends ConsumerState<SubmitSightingScreen> {
       setState(() => _submitting = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to submit: $e')),
+          const SnackBar(content: Text('Failed to submit sighting. Please try again.')),
         );
       }
     }

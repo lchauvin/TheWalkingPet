@@ -23,7 +23,7 @@ class LostApi {
       'last_seen_lat': lat,
       'last_seen_lon': lon,
       if (description != null && description.isNotEmpty) 'description': description,
-      if (rewardAmount != null) 'reward_amount': rewardAmount,
+      'reward_amount': ?rewardAmount,
     });
     return LostDeclaration.fromJson(response.data as Map<String, dynamic>);
   }

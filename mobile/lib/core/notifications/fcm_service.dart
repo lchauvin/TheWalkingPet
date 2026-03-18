@@ -32,11 +32,16 @@ class FcmService {
     FirebaseMessaging.onMessage.listen((message) {
       final notification = message.notification;
       if (notification != null && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.clearSnackBars();
+        messenger.showSnackBar(
           SnackBar(
             content: Text('${notification.title}: ${notification.body}'),
             duration: const Duration(seconds: 6),
             backgroundColor: Colors.deepOrange,
+            behavior: SnackBarBehavior.floating,
+            showCloseIcon: true,
+            closeIconColor: Colors.white,
             action: SnackBarAction(
               label: 'View',
               textColor: Colors.white,

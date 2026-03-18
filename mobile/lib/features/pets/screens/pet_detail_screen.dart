@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -18,7 +19,7 @@ class PetDetailScreen extends ConsumerWidget {
 
     return petsAsync.when(
       loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
+      error: (e, _) => const Scaffold(body: Center(child: Text('Failed to load pet details.'))),
       data: (pets) {
         final pet = pets.where((p) => p.id == petId).firstOrNull;
         if (pet == null) {
@@ -79,31 +80,57 @@ class _PetDetailViewState extends ConsumerState<_PetDetailView> {
         _uploadProgress = 0;
         _uploadTotal = picked.length;
       });
-      for (final xfile in picked) {
-        await ref.read(petsProvider.notifier).uploadImage(
-          widget.pet.id,
-          File(xfile.path),
-          isPrimary: widget.pet.images.isEmpty && _uploadProgress == 0,
-        );
-        if (!mounted) return;
-        setState(() => _uploadProgress++);
+      int failed = 0;
+      try {
+        for (final xfile in picked) {
+          try {
+            await ref.read(petsProvider.notifier).uploadImage(
+              widget.pet.id,
+              File(xfile.path),
+              isPrimary: widget.pet.images.isEmpty && _uploadProgress == 0,
+            );
+          } catch (_) {
+            failed++;
+          }
+          if (!mounted) return;
+          setState(() => _uploadProgress++);
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _uploading = false);
+          if (failed > 0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('$failed photo${failed > 1 ? 's' : ''} failed to upload.'),
+              ),
+            );
+          }
+        }
       }
     } else {
       final picked = await _picker.pickImage(source: source, imageQuality: 85);
       if (picked == null || !mounted) return;
 
       setState(() { _uploading = true; _uploadProgress = 0; _uploadTotal = 1; });
-      await ref.read(petsProvider.notifier).uploadImage(
-        widget.pet.id,
-        File(picked.path),
-        isPrimary: widget.pet.images.isEmpty,
-      );
+      try {
+        await ref.read(petsProvider.notifier).uploadImage(
+          widget.pet.id,
+          File(picked.path),
+          isPrimary: widget.pet.images.isEmpty,
+        );
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to upload photo. Please try again.')),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _uploading = false);
+      }
     }
-
-    if (mounted) setState(() => _uploading = false);
   }
 
-  Future<void> _confirmDelete(BuildContext context) async {
+  Future<void> _confirmDelete() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -123,8 +150,16 @@ class _PetDetailViewState extends ConsumerState<_PetDetailView> {
       ),
     );
     if (confirmed == true && mounted) {
-      await ref.read(petsProvider.notifier).deletePet(widget.pet.id);
-      if (mounted) Navigator.of(context).pop();
+      try {
+        await ref.read(petsProvider.notifier).deletePet(widget.pet.id);
+        if (!mounted) return;
+        Navigator.of(context).pop();
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to delete pet. Please try again.')),
+        );
+      }
     }
   }
 
@@ -138,7 +173,7 @@ class _PetDetailViewState extends ConsumerState<_PetDetailView> {
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.red),
-            onPressed: () => _confirmDelete(context),
+            onPressed: _confirmDelete,
           ),
         ],
       ),
@@ -228,10 +263,16 @@ class _PetDetailViewState extends ConsumerState<_PetDetailView> {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        imageUrl(img.imagePath),
+                      child: CachedNetworkImage(
+                        imageUrl: imageUrl(img.imagePath),
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
+                        placeholder: (_, _) => Container(
+                          color: Colors.grey.shade100,
+                          child: const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                        errorWidget: (_, _, _) => Container(
                           color: Colors.grey.shade200,
                           child: const Icon(Icons.broken_image, color: Colors.grey),
                         ),
@@ -275,9 +316,19 @@ class _PetDetailViewState extends ConsumerState<_PetDetailView> {
                             ),
                           );
                           if (confirmed == true) {
-                            await ref
-                                .read(petsProvider.notifier)
-                                .deletePetImage(widget.pet.id, img.id);
+                            try {
+                              await ref
+                                  .read(petsProvider.notifier)
+                                  .deletePetImage(widget.pet.id, img.id);
+                            } catch (_) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Failed to delete photo. Please try again.'),
+                                  ),
+                                );
+                              }
+                            }
                           }
                         },
                         child: Container(

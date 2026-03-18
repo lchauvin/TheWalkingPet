@@ -22,6 +22,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   AuthNotifier() : super(const AuthState()) {
     _checkAuth();
+    // Wire up the API client to redirect to login on session expiry.
+    _client.onSessionExpired =
+        () => state = const AuthState(status: AuthStatus.unauthenticated);
   }
 
   Future<void> _checkAuth() async {
@@ -85,7 +88,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     await GoogleAuthService.signOut();
-    await _api.logout();
+    try {
+      await _api.logout();
+    } catch (_) {
+      // Best-effort server-side invalidation — always clear local state.
+    }
+    await _client.clearTokens();
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
 

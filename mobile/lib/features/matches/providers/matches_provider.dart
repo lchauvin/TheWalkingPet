@@ -30,8 +30,12 @@ class MatchesNotifier extends StateNotifier<AsyncValue<List<PetMatch>>> {
   }
 
   Future<void> reject(String matchId) async {
-    final updated = await _api.reject(matchId);
-    _updateMatch(updated);
+    try {
+      final updated = await _api.reject(matchId);
+      _updateMatch(updated);
+    } catch (_) {
+      rethrow;
+    }
   }
 
   void _updateMatch(PetMatch updated) {

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -39,7 +40,20 @@ class _MatchesScreenState extends ConsumerState<MatchesScreen> {
       ),
       body: matchesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 8),
+              const Text('Failed to load matches.'),
+              TextButton(
+                onPressed: () => ref.read(matchesProvider.notifier).load(),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
         data: (matches) {
           if (matches.isEmpty) {
             return const Center(
@@ -146,12 +160,19 @@ class _MatchCard extends ConsumerWidget {
                     child: Stack(
                       alignment: Alignment.topRight,
                       children: [
-                        Image.network(
-                          imageUrl(match.sightingImagePath!),
+                        CachedNetworkImage(
+                          imageUrl: imageUrl(match.sightingImagePath!),
                           height: 180,
                           width: double.infinity,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
+                          placeholder: (_, _) => Container(
+                            height: 180,
+                            color: Colors.grey.shade100,
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          ),
+                          errorWidget: (_, _, _) => Container(
                             height: 180,
                             color: Colors.grey.shade200,
                             child: const Icon(Icons.broken_image,
@@ -188,7 +209,7 @@ class _MatchCard extends ConsumerWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
+                    color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: statusColor),
                   ),
@@ -320,11 +341,11 @@ class _MatchCard extends ConsumerWidget {
       PageRouteBuilder(
         opaque: false,
         barrierColor: Colors.black87,
-        pageBuilder: (_, __, ___) => _FullScreenImageViewer(
+        pageBuilder: (_, _, _) => _FullScreenImageViewer(
           imageUrl: imageUrl(imagePath),
           heroTag: 'sighting_image_${match.id}',
         ),
-        transitionsBuilder: (_, animation, __, child) =>
+        transitionsBuilder: (_, animation, _, child) =>
             FadeTransition(opacity: animation, child: child),
       ),
     );
@@ -388,13 +409,13 @@ class _FullScreenImageViewer extends StatelessWidget {
               child: InteractiveViewer(
                 minScale: 0.5,
                 maxScale: 5.0,
-                child: Image.network(
-                  imageUrl,
+                child: CachedNetworkImage(
+                  imageUrl: imageUrl,
                   fit: BoxFit.contain,
-                  loadingBuilder: (_, child, progress) => progress == null
-                      ? child
-                      : const Center(child: CircularProgressIndicator(color: Colors.white)),
-                  errorBuilder: (_, __, ___) => const Icon(
+                  placeholder: (_, _) => const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                  errorWidget: (_, _, _) => const Icon(
                     Icons.broken_image,
                     color: Colors.white54,
                     size: 64,
