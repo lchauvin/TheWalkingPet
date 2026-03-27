@@ -18,14 +18,24 @@ from src.dependencies import set_ml_models
 logger = logging.getLogger(__name__)
 
 
+def _validate_runtime_security() -> None:
+    """Fail fast on obvious insecure production config."""
+    is_local_db = settings.postgres_host in {"localhost", "127.0.0.1"}
+    using_default_jwt = settings.jwt_secret_key == "change_me_to_a_random_secret_key_at_least_32_chars"
+    if not settings.debug and not is_local_db and using_default_jwt:
+        raise RuntimeError("Refusing to start with default JWT secret in non-local environment")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _validate_runtime_security()
+
     # --- Startup ---
     from src.ml.detector import PetDetector
     from src.ml.embedder import PetEmbedder
 
     embedder = PetEmbedder(checkpoint_path=settings.model_checkpoint_path)
-    detector = PetDetector()
+    detector = PetDetector(model_name=settings.yolo_model)
     set_ml_models(embedder, detector)
     logger.info("[Startup] ML models loaded")
 

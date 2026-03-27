@@ -49,7 +49,7 @@ def _load_image(path: str) -> Image.Image | None:
                 return Image.open(full_path).convert("RGB")
             except Exception as e:
                 logger.warning(f"Failed to open {full_path}: {e}")
-                return None
+                continue
     logger.warning(f"Image not found: {path}")
     return None
 

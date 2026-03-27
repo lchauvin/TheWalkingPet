@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 
 import numpy as np
@@ -95,7 +96,9 @@ async def add_pet_image(
     from PIL import Image
 
     pet = await get_pet(db, pet_id)
-    if pet and len(pet.images) >= MAX_IMAGES_PER_PET:
+    if not pet:
+        raise LookupError("Pet not found")
+    if len(pet.images) >= MAX_IMAGES_PER_PET:
         raise ValueError(f"Maximum of {MAX_IMAGES_PER_PET} images per pet reached")
 
     path = await image_store.save(file, subfolder=f"pets/{pet_id}")
@@ -104,11 +107,11 @@ async def add_pet_image(
     content = await file.read()
     pil_image = Image.open(io.BytesIO(content)).convert("RGB")
 
-    detection = detector.best_detection(pil_image)
+    detection = await asyncio.to_thread(detector.best_detection, pil_image)
     crop = detection["masked"] if detection else pil_image
 
     # Use TTA for registration photos to improve embedding quality
-    embedding = embedder.embed_image_tta(crop)
+    embedding = await asyncio.to_thread(embedder.embed_image_tta, crop)
 
     pet_image = PetImage(
         id=uuid.uuid4(),

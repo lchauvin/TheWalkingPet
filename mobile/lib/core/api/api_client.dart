@@ -5,11 +5,11 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 // TODO: Switch to HTTPS in production.
 const apiBaseUrl = String.fromEnvironment(
   'API_URL',
-  defaultValue: 'http://192.168.2.21:8000/api/v1',
+  defaultValue: 'http://192.168.2.21:8010/api/v1',
 );
 const _storageBase = String.fromEnvironment(
   'STORAGE_URL',
-  defaultValue: 'http://192.168.2.21:8000/storage',
+  defaultValue: 'http://192.168.2.21:8010/storage',
 );
 
 /// Convert a stored image path to a full URL.

@@ -1,5 +1,7 @@
+import asyncio
 import io
 import logging
+import math
 import uuid
 
 from fastapi import UploadFile
@@ -30,7 +32,7 @@ async def create_sighting(
     content = await file.read()
     pil_image = Image.open(io.BytesIO(content)).convert("RGB")
 
-    detection = detector.best_detection(pil_image)
+    detection = await asyncio.to_thread(detector.best_detection, pil_image)
     if detection:
         crop = detection["masked"]
         species_detected = _SPECIES_MAP.get(detection["species"])
@@ -47,8 +49,7 @@ async def create_sighting(
             f"[Sighting] No pet detected — using full image {pil_image.size}"
         )
 
-    embedding = embedder.embed_image(crop)
-    import math
+    embedding = await asyncio.to_thread(embedder.embed_image, crop)
     norm = math.sqrt(sum(v * v for v in embedding))
     logger.info(f"[Sighting] Embedding dim={len(embedding)} norm={norm:.4f}")
 

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models import LostDeclaration, LostStatus, Pet
 from src.schemas.lost import LostDeclarationCreate, LostDeclarationUpdate
-from src.utils.geo import haversine_km
+from src.utils.geo import bounding_box, haversine_km
 
 
 async def declare_lost(
@@ -40,6 +40,22 @@ async def get_declaration(
     return await db.get(LostDeclaration, declaration_id)
 
 
+async def get_user_declaration(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    declaration_id: uuid.UUID,
+) -> LostDeclaration | None:
+    result = await db.execute(
+        select(LostDeclaration)
+        .join(Pet, LostDeclaration.pet_id == Pet.id)
+        .where(
+            LostDeclaration.id == declaration_id,
+            Pet.owner_id == user_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_user_declarations(
     db: AsyncSession, user_id: uuid.UUID
 ) -> list[LostDeclaration]:
@@ -54,8 +70,13 @@ async def get_user_declarations(
 async def get_nearby_declarations(
     db: AsyncSession, lat: float, lon: float, radius_km: float
 ) -> list[LostDeclaration]:
+    min_lat, max_lat, min_lon, max_lon = bounding_box(lat, lon, radius_km)
     result = await db.execute(
-        select(LostDeclaration).where(LostDeclaration.status == LostStatus.ACTIVE)
+        select(LostDeclaration).where(
+            LostDeclaration.status == LostStatus.ACTIVE,
+            LostDeclaration.last_seen_lat.between(min_lat, max_lat),
+            LostDeclaration.last_seen_lon.between(min_lon, max_lon),
+        )
     )
     declarations = list(result.scalars().all())
     return [

@@ -80,6 +80,8 @@ async def google_auth(db: AsyncSession, id_token: str) -> dict:
             await db.commit()
 
     if not user:
+        if not email:
+            raise ValueError("Google account email is required to create a user")
         user = User(
             id=uuid.uuid4(),
             email=email,
@@ -103,7 +105,12 @@ async def refresh_tokens(db: AsyncSession, refresh_token: str) -> dict:
         raise ValueError("Token is not a refresh token")
 
     user_id = payload.get("sub")
-    user = await db.get(User, uuid.UUID(user_id))
+    try:
+        user_uuid = uuid.UUID(str(user_id))
+    except (ValueError, TypeError):
+        raise ValueError("Invalid token subject")
+
+    user = await db.get(User, user_uuid)
     if not user:
         raise ValueError("User not found")
 

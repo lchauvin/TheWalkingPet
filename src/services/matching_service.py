@@ -13,6 +13,7 @@ import uuid
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import cast, literal, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -43,27 +44,33 @@ def _make_query_vec(embedding: list[float]):
     return cast(literal(vec_str), Vector(settings.embedding_dim))
 
 
-async def _get_reference_position(
+async def _get_confirmed_positions(
     db: AsyncSession,
-    declaration_id: uuid.UUID,
-    fallback_lat: float,
-    fallback_lon: float,
-) -> tuple[float, float, str]:
-    """Return (lat, lon, source) — most recent confirmed sighting if any, else last_seen."""
+    declaration_ids: list[uuid.UUID],
+) -> dict[uuid.UUID, tuple[float, float]]:
+    """Return latest confirmed sighting position per declaration."""
+    if not declaration_ids:
+        return {}
+
     result = await db.execute(
-        select(Sighting.latitude, Sighting.longitude)
+        select(
+            Match.lost_declaration_id,
+            Sighting.latitude,
+            Sighting.longitude,
+            Sighting.created_at,
+        )
         .join(Match, Match.sighting_id == Sighting.id)
         .where(
-            Match.lost_declaration_id == declaration_id,
+            Match.lost_declaration_id.in_(declaration_ids),
             Match.status == MatchStatus.CONFIRMED,
         )
-        .order_by(Sighting.created_at.desc())
-        .limit(1)
+        .order_by(Match.lost_declaration_id, Sighting.created_at.desc())
     )
-    row = result.first()
-    if row:
-        return row.latitude, row.longitude, "last confirmed sighting"
-    return fallback_lat, fallback_lon, "last seen"
+    latest: dict[uuid.UUID, tuple[float, float]] = {}
+    for row in result.fetchall():
+        if row.lost_declaration_id not in latest:
+            latest[row.lost_declaration_id] = (row.latitude, row.longitude)
+    return latest
 
 
 async def find_candidate_declarations(
@@ -100,7 +107,7 @@ async def find_candidate_declarations(
     )
     for decl in candidates:
         dist = haversine_km(lat, lon, decl.last_seen_lat, decl.last_seen_lon)
-        logger.info(
+        logger.debug(
             f"[Matching]   decl={decl.id} pet={decl.pet_id} "
             f"radius={decl.search_radius_km}km dist={dist:.3f}km "
             f"{'✓' if dist <= decl.search_radius_km else '✗'}"
@@ -151,50 +158,57 @@ async def run_matching(
     query_vec = _make_query_vec(sighting.embedding)
 
     # Phase 3: prefer aggregate pet embedding; fall back to per-image max
-    pet_rows = await db.execute(
-        select(Pet.id, Pet.embedding).where(Pet.id.in_(pet_ids))
-    )
-    pets_with_agg: dict[uuid.UUID, list[float]] = {}
-    pets_without_agg: list[uuid.UUID] = []
-    for row in pet_rows.fetchall():
-        if row.embedding is not None:
-            pets_with_agg[row.id] = row.embedding
-        else:
-            pets_without_agg.append(row.id)
-
     similarity_scores: dict[uuid.UUID, float] = {}
-
-    for pid, agg_emb in pets_with_agg.items():
-        agg_vec = _make_query_vec(agg_emb)
-        row = (await db.execute(
-            select((1 - agg_vec.cosine_distance(query_vec)).label("similarity"))
-        )).first()
-        if row:
-            similarity_scores[pid] = float(row.similarity)
+    agg_rows = await db.execute(
+        select(
+            Pet.id,
+            (1 - Pet.embedding.cosine_distance(query_vec)).label("similarity"),
+        )
+        .where(Pet.id.in_(pet_ids), Pet.embedding.isnot(None))
+    )
+    pets_with_agg_ids: set[uuid.UUID] = set()
+    for row in agg_rows.fetchall():
+        similarity_scores[row.id] = float(row.similarity)
+        pets_with_agg_ids.add(row.id)
+    pets_without_agg = [pid for pid in pet_ids if pid not in pets_with_agg_ids]
 
     if pets_without_agg:
         fallback = await _image_similarity_fallback(db, pets_without_agg, query_vec)
         similarity_scores.update(fallback)
 
+    existing_rows = await db.execute(
+        select(Match.lost_declaration_id).where(Match.sighting_id == sighting.id)
+    )
+    existing_decl_ids = {row.lost_declaration_id for row in existing_rows.fetchall()}
+    confirmed_positions = await _get_confirmed_positions(
+        db, [decl.id for decl in candidates]
+    )
+
     matches = []
     for pet_id, image_sim in similarity_scores.items():
         decl = decl_by_pet[pet_id]
+        if decl.id in existing_decl_ids:
+            logger.debug(f"[Matching] Skipping duplicate candidate for declaration={decl.id}")
+            continue
 
-        ref_lat, ref_lon, ref_source = await _get_reference_position(
-            db, decl.id, decl.last_seen_lat, decl.last_seen_lon
-        )
+        if decl.id in confirmed_positions:
+            ref_lat, ref_lon = confirmed_positions[decl.id]
+            ref_source = "last confirmed sighting"
+        else:
+            ref_lat, ref_lon = decl.last_seen_lat, decl.last_seen_lon
+            ref_source = "last seen"
         dist_km = haversine_km(sighting.latitude, sighting.longitude, ref_lat, ref_lon)
         dist_s = _distance_score(dist_km)
         combined = IMAGE_WEIGHT * image_sim + DISTANCE_WEIGHT * dist_s
 
-        logger.info(
+        logger.debug(
             f"[Matching] pet={pet_id} image={image_sim:.1%} | "
             f"dist={dist_km:.2f}km from {ref_source} → dist_score={dist_s:.1%} | "
             f"combined={combined:.1%}"
         )
 
         if combined < SIMILARITY_THRESHOLD:
-            logger.info(f"[Matching] ✗ Below threshold {SIMILARITY_THRESHOLD:.0%} — skipped")
+            logger.debug(f"[Matching] ✗ Below threshold {SIMILARITY_THRESHOLD:.0%} — skipped")
             continue
 
         match = Match(
@@ -206,13 +220,19 @@ async def run_matching(
         )
         db.add(match)
         matches.append(match)
-        logger.info(
+        logger.debug(
             f"[Matching] ✓ MATCH created: score={combined:.1%} "
             f"(image={image_sim:.1%}, dist={dist_km:.2f}km)"
         )
 
     if matches:
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            # Another concurrent matcher may have inserted the same pair first.
+            await db.rollback()
+            logger.info(f"[Matching] Duplicate match insert race for sighting={sighting.id}; skipped")
+            return []
         for m in matches:
             await db.refresh(m)
     else:

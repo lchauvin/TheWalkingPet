@@ -81,5 +81,11 @@ async def reject_match(
     match = await _get_match_for_owner(db, match_id, current_user.id)
     match.status = MatchStatus.REJECTED
     await db.commit()
-    await db.refresh(match)
-    return match
+    stmt = (
+        select(Match)
+        .where(Match.id == match.id)
+        .options(selectinload(Match.sighting))
+    )
+    result = await db.execute(stmt)
+    match = result.scalar_one()
+    return MatchOut.from_match(match)

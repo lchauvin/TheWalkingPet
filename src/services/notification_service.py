@@ -71,7 +71,7 @@ async def notify_match(match: Match) -> None:
                 },
                 token=owner.fcm_token,
             )
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             response = await asyncio.wait_for(
                 loop.run_in_executor(None, lambda: messaging.send(message)),
                 timeout=FCM_TIMEOUT_SECONDS,

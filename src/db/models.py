@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     Text,
     Enum,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -151,3 +152,7 @@ class Match(Base):
 
     sighting: Mapped["Sighting"] = relationship("Sighting", back_populates="matches")
     lost_declaration: Mapped["LostDeclaration"] = relationship("LostDeclaration", back_populates="matches")
+
+    __table_args__ = (
+        UniqueConstraint("sighting_id", "lost_declaration_id", name="uq_matches_sighting_lost"),
+    )
