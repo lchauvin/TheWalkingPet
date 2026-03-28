@@ -32,10 +32,14 @@ uv.lock
 
 # Flutter / Dart
 mobile/.dart_tool/
+mobile/.metadata
 mobile/.flutter-plugins
 mobile/.flutter-plugins-dependencies
 mobile/build/
 mobile/android/.gradle/
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/captures/
 mobile/android/local.properties
 mobile/android/key.properties
 mobile/*.jks

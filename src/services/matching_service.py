@@ -57,7 +57,6 @@ async def _get_confirmed_positions(
             Match.lost_declaration_id,
             Sighting.latitude,
             Sighting.longitude,
-            Sighting.created_at,
         )
         .join(Match, Match.sighting_id == Sighting.id)
         .where(
@@ -65,12 +64,12 @@ async def _get_confirmed_positions(
             Match.status == MatchStatus.CONFIRMED,
         )
         .order_by(Match.lost_declaration_id, Sighting.created_at.desc())
+        .distinct(Match.lost_declaration_id)
     )
-    latest: dict[uuid.UUID, tuple[float, float]] = {}
-    for row in result.fetchall():
-        if row.lost_declaration_id not in latest:
-            latest[row.lost_declaration_id] = (row.latitude, row.longitude)
-    return latest
+    return {
+        row.lost_declaration_id: (row.latitude, row.longitude)
+        for row in result.fetchall()
+    }
 
 
 async def find_candidate_declarations(

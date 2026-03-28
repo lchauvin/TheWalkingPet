@@ -12,5 +12,7 @@ RUN pip install --no-cache-dir -e .
 
 COPY . .
 
-EXPOSE 8010
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8010"]
+ARG PORT=8010
+ENV PORT=${PORT}
+EXPOSE ${PORT}
+CMD uvicorn src.main:app --host 0.0.0.0 --port ${PORT}

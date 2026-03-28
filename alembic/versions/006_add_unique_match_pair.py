@@ -20,7 +20,7 @@ def upgrade() -> None:
         USING matches dup
         WHERE m.sighting_id = dup.sighting_id
           AND m.lost_declaration_id = dup.lost_declaration_id
-          AND m.ctid < dup.ctid
+          AND (m.created_at, m.id) < (dup.created_at, dup.id)
         """
     )
     op.create_unique_constraint(

@@ -18,12 +18,17 @@ from src.dependencies import set_ml_models
 logger = logging.getLogger(__name__)
 
 
+_DEFAULT_JWT = "change_me_to_a_random_secret_key_at_least_32_chars"
+
+
 def _validate_runtime_security() -> None:
-    """Fail fast on obvious insecure production config."""
+    """Warn on insecure config; refuse to start in production with default JWT secret."""
     is_local_db = settings.postgres_host in {"localhost", "127.0.0.1"}
-    using_default_jwt = settings.jwt_secret_key == "change_me_to_a_random_secret_key_at_least_32_chars"
-    if not settings.debug and not is_local_db and using_default_jwt:
-        raise RuntimeError("Refusing to start with default JWT secret in non-local environment")
+    using_default_jwt = settings.jwt_secret_key == _DEFAULT_JWT
+    if using_default_jwt:
+        if not settings.debug and not is_local_db:
+            raise RuntimeError("Refusing to start with default JWT secret in non-local environment")
+        logger.warning("[Security] Using default JWT secret — set JWT_SECRET_KEY in .env before deploying")
 
 
 @asynccontextmanager

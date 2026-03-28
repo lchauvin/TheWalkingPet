@@ -21,7 +21,7 @@ services:
     container_name: twp_app
     env_file: .env
     ports:
-      - "8010:8010"
+      - "${PORT:-8010}:${PORT:-8010}"
     volumes:
       - ./src:/app/src
       - ./data:/app/data
@@ -30,7 +30,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8010 --reload
+    command: uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8010} --reload
 
 volumes:
   pgdata:
