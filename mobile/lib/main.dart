@@ -166,7 +166,15 @@ class _MainShellState extends ConsumerState<MainShell>
 
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).matchedLocation;
+    // Use the full current location (uri.path), not matchedLocation: this
+    // MainShell is built by the ShellRoute, so GoRouterState.of(context)
+    // resolves to the *shell's* state. On a context.push (e.g. /pets/:id),
+    // the shell match is reused and its matchedLocation stays at the current
+    // tab (e.g. /home) — only uri reflects the pushed route. Using
+    // matchedLocation here would keep isMainTab true and render the tab
+    // IndexedStack instead of the pushed screen, so detail/add/declare-lost
+    // would silently never appear.
+    final location = GoRouterState.of(context).uri.path;
 
     // Determine which tab is "active" for the nav bar highlight.
     // Sub-routes under /pets (detail, add, declare-lost) keep "My Pets" highlighted.
