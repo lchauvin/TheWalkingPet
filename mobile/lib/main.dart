@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/config/server_config.dart';
 import 'core/notifications/fcm_service.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
@@ -17,9 +18,11 @@ import 'features/sightings/screens/submit_sighting_screen.dart';
 import 'features/pets/screens/add_pet_screen.dart';
 import 'features/pets/screens/pet_detail_screen.dart';
 import 'features/pets/screens/pets_screen.dart';
+import 'features/settings/screens/settings_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ServerConfig.init();
   await Firebase.initializeApp();
 
   // Keep more decoded images in RAM so tab switches and scrolls are instant.
@@ -56,13 +59,18 @@ class _TheWalkingPetAppState extends ConsumerState<TheWalkingPetApp> {
         final isAuth = authState.status == AuthStatus.authenticated;
         final isOnAuth = state.matchedLocation == '/login' ||
             state.matchedLocation == '/register';
-        if (!isAuth && !isOnAuth) return '/login';
+        // Settings must stay reachable regardless of auth state — a stale
+        // server address (e.g. after the Tailscale IP changes) can prevent
+        // login from ever succeeding.
+        final isOnSettings = state.matchedLocation == '/settings';
+        if (!isAuth && !isOnAuth && !isOnSettings) return '/login';
         if (isAuth && isOnAuth) return '/home';
         return null;
       },
       routes: [
         GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
         GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
+        GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
         ShellRoute(
           builder: (context, state, child) => MainShell(child: child),
           routes: [

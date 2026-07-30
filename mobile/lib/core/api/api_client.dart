@@ -1,16 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-// Configure at build time via --dart-define=API_URL=https://...
-// TODO: Switch to HTTPS in production.
-const apiBaseUrl = String.fromEnvironment(
-  'API_URL',
-  defaultValue: 'http://192.168.2.21:8010/api/v1',
-);
-const _storageBase = String.fromEnvironment(
-  'STORAGE_URL',
-  defaultValue: 'http://192.168.2.21:8010/storage',
-);
+import '../config/server_config.dart';
 
 /// Convert a stored image path to a full URL.
 /// Stored paths look like: storage\images\pets\{id}\file.jpg  (Windows)
@@ -22,7 +12,7 @@ String imageUrl(String path) {
   final relative = normalized
       .replaceFirst(RegExp(r'^storage/images/?'), '')
       .replaceFirst(RegExp(r'^/'), '');
-  return '$_storageBase/$relative';
+  return '${ServerConfig.storageBaseUrl}/$relative';
 }
 
 class ApiClient {
@@ -38,7 +28,7 @@ class ApiClient {
 
   ApiClient._internal() {
     _dio = Dio(BaseOptions(
-      baseUrl: apiBaseUrl,
+      baseUrl: ServerConfig.apiBaseUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 30),
       sendTimeout: const Duration(seconds: 30),
@@ -69,13 +59,19 @@ class ApiClient {
     ));
   }
 
+  /// Called after the server address changes in Settings so in-flight
+  /// requests and future ones target the new host.
+  void updateBaseUrl() {
+    _dio.options.baseUrl = ServerConfig.apiBaseUrl;
+  }
+
   Future<bool> _tryRefresh() async {
     try {
       final refreshToken = await _storage.read(key: 'refresh_token');
       if (refreshToken == null) return false;
 
       final response = await Dio().post(
-        '$apiBaseUrl/auth/refresh',
+        '${ServerConfig.apiBaseUrl}/auth/refresh',
         data: {'refresh_token': refreshToken},
       );
       await saveTokens(

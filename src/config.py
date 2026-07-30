@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     postgres_password: str = "twp_secret"
     postgres_db: str = "thewalkingpet"
     postgres_host: str = "localhost"
-    postgres_port: int = 5432
+    postgres_port: int = 9876
 
     # JWT
     jwt_secret_key: str = "change_me_to_a_random_secret_key_at_least_32_chars"

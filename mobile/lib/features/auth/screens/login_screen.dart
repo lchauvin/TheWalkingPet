@@ -51,6 +51,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final error = ref.watch(authProvider).error;
 
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Server settings',
+            onPressed: () => context.push('/settings'),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

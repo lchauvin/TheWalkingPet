@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-twp_secret}
       POSTGRES_DB: ${POSTGRES_DB:-thewalkingpet}
     ports:
-      - "5432:5432"
+      - "9876:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,6 +20,12 @@ services:
     build: .
     container_name: twp_app
     env_file: .env
+    environment:
+      # Inside the Compose network the DB is reachable at service "db":5432,
+      # not at the host mapping (localhost:9876). These override the .env values
+      # (which are correct for host-side tools like Alembic).
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
     ports:
       - "${PORT:-8010}:${PORT:-8010}"
     volumes:

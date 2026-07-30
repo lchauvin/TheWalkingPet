@@ -24,10 +24,13 @@ class PetsScreen extends ConsumerWidget {
           ),
           PopupMenuButton(
             itemBuilder: (_) => [
+              const PopupMenuItem(value: 'settings', child: Text('Settings')),
               const PopupMenuItem(value: 'logout', child: Text('Logout')),
             ],
             onSelected: (value) {
-              if (value == 'logout') {
+              if (value == 'settings') {
+                context.push('/settings');
+              } else if (value == 'logout') {
                 ref.read(authProvider.notifier).logout();
               }
             },
