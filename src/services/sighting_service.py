@@ -60,6 +60,8 @@ async def create_sighting(
         embedding=embedding,
         latitude=data.latitude,
         longitude=data.longitude,
+        location_source=data.location_source,
+        taken_at=data.taken_at,
         species_detected=species_detected,
     )
     db.add(sighting)

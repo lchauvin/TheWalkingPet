@@ -1,6 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Android 10+ redacts GPS tags from gallery images without this, so a
+         photo's own location would silently read as absent. It is a runtime
+         grant, not just a manifest entry. Verified on Android 15 that this
+         alone is enough: no library-wide read permission is needed, because
+         picking a file already grants access to that one file. -->
+    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
     <application
         android:label="TheWalkingPet"
         android:name="${applicationName}"

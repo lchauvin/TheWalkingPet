@@ -30,6 +30,13 @@ dependencies:
   # Location
   geolocator: ^13.0.2
 
+  # Reading GPS + capture time out of a picked photo
+  exif: ^3.3.0
+
+  # Runtime ACCESS_MEDIA_LOCATION, without which Android redacts a
+  # gallery image's GPS tags before the app ever sees the file.
+  permission_handler: ^11.3.1
+
   # Firebase
   firebase_core: ^3.13.0
   firebase_messaging: ^15.2.5
