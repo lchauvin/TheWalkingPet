@@ -12,20 +12,36 @@ from src.db.models import Match
 logger = logging.getLogger(__name__)
 
 _firebase_initialized = False
+_firebase_init_failed = False
 
 
 def _get_firebase_app():
-    global _firebase_initialized
-    if _firebase_initialized:
+    """Initialise Firebase once, leaving the flag unset if it cannot be done.
+
+    A missing or malformed key file must not raise: the caller runs inside the
+    matching background task, where one exception would skip the notification
+    for every remaining match of that sighting.
+    """
+    global _firebase_initialized, _firebase_init_failed
+    if _firebase_initialized or _firebase_init_failed:
         return
     if not settings.firebase_credentials_path:
         return
-    import firebase_admin
-    from firebase_admin import credentials
-    if not firebase_admin._apps:
-        cred = credentials.Certificate(settings.firebase_credentials_path)
-        firebase_admin.initialize_app(cred)
-    _firebase_initialized = True
+    try:
+        import firebase_admin
+        from firebase_admin import credentials
+        if not firebase_admin._apps:
+            cred = credentials.Certificate(settings.firebase_credentials_path)
+            firebase_admin.initialize_app(cred)
+        _firebase_initialized = True
+    except Exception as e:
+        # Latched so a broken deployment logs once, not once per match.
+        _firebase_init_failed = True
+        logger.error(
+            f"[Notification] Firebase init failed from "
+            f"{settings.firebase_credentials_path!r}: {e}. Push notifications "
+            f"are disabled until this is fixed."
+        )
 
 
 async def notify_match(match: Match) -> None:

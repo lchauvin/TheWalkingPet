@@ -1,0 +1,133 @@
+# Production stack.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Requires a .env.prod holding real secrets (see .env.example) and a DOMAIN that
+# resolves to this host — Caddy provisions the TLS certificate on first boot.
+#
+# Memory note: every uvicorn worker loads its own copy of DINOv2 ViT-L/14
+# (~1.2 GB resident). Budget roughly 1.5 GB per WEB_CONCURRENCY step.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-thewalkingpet}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Not published to the host: only the compose network reaches Postgres.
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-thewalkingpet}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  migrate:
+    build:
+      context: .
+      target: runtime
+    env_file: .env.prod
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runtime
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      ENVIRONMENT: production
+      STORAGE_PATH: /app/storage/images
+      YOLO_MODEL: /opt/ml-cache/yolov8m-seg.pt
+      LOG_JSON: "true"
+      # The scheduler runs in its own single-instance service below.
+      RUN_SCHEDULER: "false"
+      RATE_LIMIT_STORAGE_URI: redis://redis:6379/0
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      # Where the `firebase_credentials` secret below is mounted.
+      FIREBASE_CREDENTIALS_PATH: /run/secrets/firebase_credentials
+    volumes:
+      - images:/app/storage/images
+    secrets:
+      - firebase_credentials
+    expose:
+      - "8010"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  scheduler:
+    build:
+      context: .
+      target: runtime
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      ENVIRONMENT: production
+      LOG_JSON: "true"
+    command: ["python", "scripts/run_scheduler.py"]
+    # Exactly one. A second instance double-expands every search radius.
+    deploy:
+      replicas: 1
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN to the hostname this server answers on}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL for certificate notices}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+secrets:
+  firebase_credentials:
+    file: ./secrets/firebase-credentials.json
+
+volumes:
+  pgdata:
+  images:
+  caddy_data:
+  caddy_config:
