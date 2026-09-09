@@ -12,10 +12,16 @@ __pycache__/
 *.ckpt
 runs/
 lightning_logs/
-models/
+# Anchored: a bare "models/" also matched mobile/lib/features/*/models/,
+# silently keeping the app's Dart model classes out of the repo.
+/models/
 
 # Uploaded images
 storage/images/
+
+# Deployment secrets
+secrets/*
+!secrets/README.md
 
 # Firebase & Google credentials
 firebase-creds.json

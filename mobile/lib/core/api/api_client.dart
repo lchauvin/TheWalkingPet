@@ -2,17 +2,25 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/server_config.dart';
 
-/// Convert a stored image path to a full URL.
-/// Stored paths look like: storage\images\pets\{id}\file.jpg  (Windows)
-/// Served at: /storage/pets/{id}/file.jpg
+/// Full URL for a stored image path.
+///
+/// Images are served by an authenticated route, not a public static mount, so
+/// every request needs [authImageHeaders]. Stored paths are relative and POSIX
+/// (`pets/<id>/file.jpg`); the leading-prefix stripping below only exists for
+/// rows written before migration 007 normalised them.
 String imageUrl(String path) {
-  // Normalize all backslashes and double-backslashes to forward slashes
   final normalized = path.replaceAll('\\\\', '/').replaceAll('\\', '/');
-  // Strip leading "storage/images" prefix
   final relative = normalized
-      .replaceFirst(RegExp(r'^storage/images/?'), '')
+      .replaceFirst(RegExp(r'^\.?/?storage/images/?'), '')
       .replaceFirst(RegExp(r'^/'), '');
-  return '${ServerConfig.storageBaseUrl}/$relative';
+  return '${ServerConfig.apiBaseUrl}/media/$relative';
+}
+
+/// Authorization header for image requests. Empty when signed out, which makes
+/// the image fail to load rather than silently render someone else's pet.
+Map<String, String> authImageHeaders() {
+  final token = ApiClient().cachedAccessToken;
+  return token == null ? const {} : {'Authorization': 'Bearer $token'};
 }
 
 class ApiClient {
@@ -21,6 +29,11 @@ class ApiClient {
 
   late final Dio _dio;
   final _storage = const FlutterSecureStorage();
+
+  /// Mirrors the stored access token so image widgets can build a header
+  /// synchronously. Kept in step by [saveTokens], [clearTokens] and [primeTokens].
+  String? _accessToken;
+  String? get cachedAccessToken => _accessToken;
 
   /// Called when a session expires and the refresh token is invalid.
   /// Set by AuthNotifier to redirect to login.
@@ -36,8 +49,9 @@ class ApiClient {
 
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final token = await _storage.read(key: 'access_token');
+        final token = _accessToken ?? await _storage.read(key: 'access_token');
         if (token != null) {
+          _accessToken = token;
           options.headers['Authorization'] = 'Bearer $token';
         }
         handler.next(options);
@@ -47,16 +61,25 @@ class ApiClient {
           final refreshed = await _tryRefresh();
           if (refreshed) {
             // Retry original request with new token
-            final token = await _storage.read(key: 'access_token');
-            error.requestOptions.headers['Authorization'] = 'Bearer $token';
-            final response = await _dio.fetch(error.requestOptions);
-            handler.resolve(response);
+            error.requestOptions.headers['Authorization'] = 'Bearer $_accessToken';
+            try {
+              final response = await _dio.fetch(error.requestOptions);
+              handler.resolve(response);
+            } on DioException catch (e) {
+              handler.next(e);
+            }
             return;
           }
         }
         handler.next(error);
       },
     ));
+  }
+
+  /// Loads the stored access token into memory. Await before first paint so
+  /// image widgets have a header on their very first build.
+  Future<void> primeTokens() async {
+    _accessToken = await _storage.read(key: 'access_token');
   }
 
   /// Called after the server address changes in Settings so in-flight
@@ -70,6 +93,7 @@ class ApiClient {
       final refreshToken = await _storage.read(key: 'refresh_token');
       if (refreshToken == null) return false;
 
+      // A bare Dio instance: this must not recurse through the 401 interceptor.
       final response = await Dio().post(
         '${ServerConfig.apiBaseUrl}/auth/refresh',
         data: {'refresh_token': refreshToken},
@@ -87,17 +111,21 @@ class ApiClient {
   }
 
   Future<void> saveTokens(String accessToken, String refreshToken) async {
+    _accessToken = accessToken;
     await _storage.write(key: 'access_token', value: accessToken);
     await _storage.write(key: 'refresh_token', value: refreshToken);
   }
 
+  Future<String?> readRefreshToken() => _storage.read(key: 'refresh_token');
+
   Future<void> clearTokens() async {
+    _accessToken = null;
     await _storage.delete(key: 'access_token');
     await _storage.delete(key: 'refresh_token');
   }
 
   Future<bool> hasToken() async {
-    final token = await _storage.read(key: 'access_token');
+    final token = _accessToken ?? await _storage.read(key: 'access_token');
     return token != null;
   }
 

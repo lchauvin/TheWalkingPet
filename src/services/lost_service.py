@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.models import LostDeclaration, LostStatus, Pet
+from src.db.models import LostDeclaration, LostStatus, Pet, PetImage
 from src.schemas.lost import LostDeclarationCreate, LostDeclarationUpdate
 from src.utils.geo import bounding_box, haversine_km
 
@@ -19,6 +19,19 @@ async def declare_lost(
     if pet.owner_id != user_id:
         raise PermissionError("You do not own this pet")
 
+    # Without at least one embedded photo the matching pipeline can never
+    # produce a result for this pet, so the declaration would be inert.
+    has_embedding = await db.scalar(
+        select(PetImage.id)
+        .where(PetImage.pet_id == pet.id, PetImage.embedding.isnot(None))
+        .limit(1)
+    )
+    if not has_embedding:
+        raise ValueError(
+            "Add at least one photo of this pet before declaring it lost — "
+            "sightings are matched against its photos."
+        )
+
     decl = LostDeclaration(
         id=uuid.uuid4(),
         pet_id=data.pet_id,
@@ -26,6 +39,7 @@ async def declare_lost(
         last_seen_lon=data.last_seen_lon,
         search_radius_km=data.search_radius_km or 0.5,
         reward_amount=data.reward_amount,
+        description=data.description,
         status=LostStatus.ACTIVE,
     )
     db.add(decl)

@@ -162,6 +162,7 @@ class _MatchCard extends ConsumerWidget {
                       children: [
                         CachedNetworkImage(
                           imageUrl: imageUrl(match.sightingImagePath!),
+                          httpHeaders: authImageHeaders(),
                           height: 180,
                           width: double.infinity,
                           fit: BoxFit.cover,
@@ -411,6 +412,7 @@ class _FullScreenImageViewer extends StatelessWidget {
                 maxScale: 5.0,
                 child: CachedNetworkImage(
                   imageUrl: imageUrl,
+                  httpHeaders: authImageHeaders(),
                   fit: BoxFit.contain,
                   placeholder: (_, _) => const Center(
                     child: CircularProgressIndicator(color: Colors.white),

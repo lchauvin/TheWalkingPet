@@ -1,0 +1,12 @@
+{
+  "name": "TheWalkingPet v2",
+  "services": [
+    {
+      "name": "API",
+      "type": "FastAPI",
+      "port": 8010,
+      "command": "uvicorn src.main:app --reload --port 8010",
+      "cwd": "."
+    }
+  ]
+}

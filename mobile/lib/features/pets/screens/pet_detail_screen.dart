@@ -265,6 +265,7 @@ class _PetDetailViewState extends ConsumerState<_PetDetailView> {
                       borderRadius: BorderRadius.circular(8),
                       child: CachedNetworkImage(
                         imageUrl: imageUrl(img.imagePath),
+                        httpHeaders: authImageHeaders(),
                         fit: BoxFit.cover,
                         placeholder: (_, _) => Container(
                           color: Colors.grey.shade100,
@@ -385,6 +386,38 @@ class _DeclareLostButton extends ConsumerWidget {
             ),
           ],
         ),
+      );
+    }
+
+    // Sightings are matched against a pet's photos, so a pet with none can be
+    // declared lost but can never be found. Say so instead of offering the button.
+    if (pet.images.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ElevatedButton.icon(
+            onPressed: null,
+            icon: const Icon(Icons.warning_amber_rounded),
+            label: const Text('Declare Lost'),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 44),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.info_outline, size: 16, color: Colors.grey.shade600),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Add a photo first — sightings are matched against '
+                  "${pet.name}'s photos.",
+                  style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+                ),
+              ),
+            ],
+          ),
+        ],
       );
     }
 

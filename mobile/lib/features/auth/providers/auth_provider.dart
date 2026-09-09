@@ -98,9 +98,24 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   String _parseError(DioException e) {
-    final detail = e.response?.data?['detail'];
-    if (detail is String) return detail;
-    return 'An error occurred. Please try again.';
+    const fallback = 'An error occurred. Please try again.';
+    final data = e.response?.data;
+    // A 5xx (or a proxy error page) can carry plain text or HTML, not a map —
+    // indexing those with a string key throws, so narrow the type first.
+    if (data is! Map) return fallback;
+
+    final detail = data['detail'];
+    if (detail is String && detail.isNotEmpty) return detail;
+    // FastAPI validation errors arrive as [{loc: [...], msg: ...}, ...].
+    if (detail is List) {
+      final messages = detail
+          .whereType<Map>()
+          .map((item) => item['msg'])
+          .whereType<String>()
+          .where((msg) => msg.isNotEmpty);
+      if (messages.isNotEmpty) return messages.join('\n');
+    }
+    return fallback;
   }
 }
 

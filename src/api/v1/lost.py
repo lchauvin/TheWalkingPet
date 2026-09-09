@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.dependencies import get_current_user, get_db
 from src.schemas.lost import LostDeclarationCreate, LostDeclarationOut, LostDeclarationUpdate
 from src.services import lost_service
@@ -22,6 +23,8 @@ async def declare_lost(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except LookupError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
 
 @router.get("", response_model=list[LostDeclarationOut])
@@ -34,11 +37,17 @@ async def list_my_declarations(
 
 @router.get("/nearby", response_model=list[LostDeclarationOut])
 async def nearby_declarations(
-    lat: float = Query(...),
-    lon: float = Query(...),
-    radius_km: float = Query(5.0),
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+    radius_km: float = Query(5.0, gt=0, le=settings.max_search_radius_km),
     db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
+    """Active declarations near a point.
+
+    Authenticated: a declaration's last-seen position is usually someone's home
+    address, so this is not open to anonymous callers.
+    """
     return await lost_service.get_nearby_declarations(db, lat, lon, radius_km)
 
 

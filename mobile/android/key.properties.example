@@ -1,0 +1,13 @@
+# Copy to android/key.properties and fill in. This file is gitignored.
+#
+# Generate a keystore once, then keep it somewhere you will not lose it —
+# losing it means you can never update the app on Play again:
+#
+#   keytool -genkey -v -keystore upload-keystore.jks \
+#     -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+storePassword=
+keyPassword=
+keyAlias=upload
+# Absolute path, or relative to the android/app directory.
+storeFile=../../upload-keystore.jks

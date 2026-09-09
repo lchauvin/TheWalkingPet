@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from src.api.v1 import auth, lost, matches, pets, sightings
+from src.api.v1 import auth, lost, matches, media, pets, sightings
 
 router = APIRouter()
 
@@ -9,3 +9,4 @@ router.include_router(pets.router, prefix="/pets", tags=["pets"])
 router.include_router(lost.router, prefix="/lost-declarations", tags=["lost"])
 router.include_router(sightings.router, prefix="/sightings", tags=["sightings"])
 router.include_router(matches.router, prefix="/matches", tags=["matches"])
+router.include_router(media.router, prefix="/media", tags=["media"])

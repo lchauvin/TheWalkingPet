@@ -1,0 +1,33 @@
+# VCS & tooling
+.git
+.gitignore
+.github
+.claude
+.pytest_cache
+**/__pycache__
+*.pyc
+
+# Local envs & secrets
+.env
+.env.*
+!.env.example
+*firebase*credentials*.json
+*service-account*.json
+
+# Virtualenvs & build output
+.venv
+venv
+dist
+*.egg-info
+
+# The mobile app is not part of the server image
+mobile
+
+# Runtime data — mounted as volumes, never baked in
+storage
+data
+models/runs
+
+# Docs (README.md is exempt: the builder stage copies it with pyproject.toml)
+*.md
+!README.md

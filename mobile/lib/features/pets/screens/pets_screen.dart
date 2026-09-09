@@ -101,6 +101,7 @@ class _PetCard extends ConsumerWidget {
               ? ClipOval(
                   child: CachedNetworkImage(
                     imageUrl: imageUrl(pet.primaryImagePath!),
+                    httpHeaders: authImageHeaders(),
                     width: 56,
                     height: 56,
                     fit: BoxFit.cover,

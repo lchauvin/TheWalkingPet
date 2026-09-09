@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: twp
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: thewalkingpet
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U twp -d thewalkingpet"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # The CPU wheel keeps the CI install to a few hundred MB rather than ~2.5 GB.
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install --extra-index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install -e ".[dev]"
+
+      # Unit tests first, with no database available to lean on.
+      - name: Unit tests
+        env:
+          JWT_SECRET_KEY: ci-secret-key-that-is-at-least-32-characters
+          RATE_LIMIT_ENABLED: "false"
+        run: pytest -q
+
+      - name: Integration tests
+        env:
+          TWP_TEST_DATABASE: "1"
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: "5432"
+          POSTGRES_PASSWORD: ci_password
+          JWT_SECRET_KEY: ci-secret-key-that-is-at-least-32-characters
+          RATE_LIMIT_ENABLED: "false"
+        run: |
+          alembic upgrade head
+          pytest -q tests/test_api_integration.py
+
+  migrations:
+    name: Migrations
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: twp
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: thewalkingpet
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U twp -d thewalkingpet"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install alembic "sqlalchemy[asyncio]" asyncpg psycopg2-binary pgvector \
+            pydantic-settings "pydantic[email]" email-validator
+
+      # upgrade then downgrade: catches migrations that only work one way.
+      - name: Migrate
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: "5432"
+          POSTGRES_PASSWORD: ci_password
+        run: |
+          alembic upgrade head
+          alembic downgrade -1
+          alembic upgrade head
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runtime
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  mobile:
+    name: Flutter
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test

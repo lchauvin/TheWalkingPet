@@ -30,7 +30,18 @@ class AuthApi {
     );
   }
 
+  /// Revokes the refresh token server-side, then clears local state.
+  /// Local tokens are dropped even if the call fails — a logout must never
+  /// leave credentials on the device.
   Future<void> logout() async {
-    await _client.clearTokens();
+    try {
+      final refreshToken = await _client.readRefreshToken();
+      await _client.dio.post(
+        '/auth/logout',
+        data: {'refresh_token': refreshToken},
+      );
+    } finally {
+      await _client.clearTokens();
+    }
   }
 }

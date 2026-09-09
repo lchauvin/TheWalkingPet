@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/api/api_client.dart';
 import 'core/config/server_config.dart';
 import 'core/notifications/fcm_service.dart';
 import 'features/auth/providers/auth_provider.dart';
@@ -23,6 +24,8 @@ import 'features/settings/screens/settings_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ServerConfig.init();
+  // Image widgets read the token synchronously, so load it before first paint.
+  await ApiClient().primeTokens();
   await Firebase.initializeApp();
 
   // Keep more decoded images in RAM so tab switches and scrolls are instant.

@@ -1,0 +1,42 @@
+# TLS termination and reverse proxy.
+# Caddy obtains and renews a Let's Encrypt certificate for {$DOMAIN}
+# automatically, provided ports 80 and 443 reach this host from the internet.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Uploads are capped in the app too; this stops an oversized body from
+	# reaching Python at all.
+	request_body {
+		max_size 15MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	# Health probes stay unlogged so they do not drown the access log.
+	@health path /health /health/ready
+	handle @health {
+		reverse_proxy app:8010
+	}
+
+	handle {
+		reverse_proxy app:8010 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

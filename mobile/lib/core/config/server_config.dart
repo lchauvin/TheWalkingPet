@@ -6,9 +6,13 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 /// but can be overridden and persisted on-device — useful when the backend's
 /// IP changes, e.g. when reached over Tailscale.
 class ServerConfig {
+  /// Build-time override: --dart-define=API_HOST=https://pets.example.com
+  ///
+  /// The default is https: a release build talks to a TLS endpoint, and a plain
+  /// http address has to be typed in deliberately from Settings.
   static const defaultHost = String.fromEnvironment(
     'API_HOST',
-    defaultValue: 'http://192.168.2.21:8010',
+    defaultValue: 'https://pets.example.com',
   );
 
   static const _key = 'server_host';
@@ -30,7 +34,8 @@ class ServerConfig {
   }
 
   /// Normalizes and persists [input] as the new server host.
-  /// Accepts forms like "100.101.102.103:8010" or "http://host:8010/".
+  /// Accepts forms like "100.101.102.103:8010" or "https://host/".
+  /// A bare host defaults to https; plain http must be spelled out.
   static Future<void> setHost(String input) async {
     _host = _normalize(input);
     await _storage.write(key: _key, value: _host);
@@ -47,7 +52,7 @@ class ServerConfig {
       h = h.substring(0, h.length - 1);
     }
     if (!h.startsWith('http://') && !h.startsWith('https://')) {
-      h = 'http://$h';
+      h = 'https://$h';
     }
     return h;
   }
